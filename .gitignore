@@ -1,0 +1,6 @@
+.agent-notes.md
+.agent/
+.DS_Store
+*~
+spec.md
+changelog.md
