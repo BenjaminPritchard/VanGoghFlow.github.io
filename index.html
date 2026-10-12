@@ -1,0 +1,1892 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Van Gogh Flow — The Evolution of Ambient Desktop Compositing</title>
+  <meta name="description" content="Portfolio showcase of Van Gogh Flow: an ambient, GPU-accelerated, 100% click-through desktop overlay visualizer across Windows, Linux X11, Wayland, macOS, and upcoming STM32MP2 multicore embedded Linux.">
+  <link rel="icon" type="image/png" href="assets/vangoghflow_logo.png">
+
+  <!-- Mermaid.js for architectural diagrams -->
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script>
+    document.addEventListener("DOMContentLoaded", function() {
+      mermaid.initialize({
+        startOnLoad: true,
+        theme: 'neutral',
+        themeVariables: {
+          primaryColor: '#e6f0fa',
+          primaryTextColor: '#1f2328',
+          primaryBorderColor: '#0969da',
+          lineColor: '#59636e',
+          secondaryColor: '#f6f8fa',
+          tertiaryColor: '#ffffff',
+          fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif'
+        }
+      });
+    });
+  </script>
+
+  <style>
+    :root {
+      --color-canvas-default: #ffffff;
+      --color-canvas-subtle: #f6f8fa;
+      --color-canvas-inset: #f3f4f6;
+      --color-border-default: #d0d7de;
+      --color-border-muted: #e1e4e8;
+      --color-fg-default: #1f2328;
+      --color-fg-muted: #59636e;
+      --color-fg-subtle: #6e7781;
+      --color-accent-fg: #0969da;
+      --color-accent-emphasis: #0969da;
+      --color-accent-subtle: #e6f0fa;
+      --color-success-fg: #1a7f37;
+      --color-success-subtle: #dafbe1;
+      --color-attention-fg: #9a6700;
+      --color-attention-subtle: #fff8c5;
+      --color-badge-bg: #eff1f3;
+      --color-badge-border: #d0d7de;
+      --color-card-bg: #ffffff;
+      --font-stack-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans", Helvetica, Arial, sans-serif;
+      --font-stack-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, "Liberation Mono", monospace;
+      --shadow-sm: 0 1px 3px rgba(31, 35, 40, 0.08);
+      --shadow-md: 0 4px 12px rgba(31, 35, 40, 0.1);
+      --shadow-lg: 0 8px 24px rgba(31, 35, 40, 0.12);
+      --radius-sm: 4px;
+      --radius-md: 6px;
+      --radius-lg: 10px;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-stack-sans);
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--color-fg-default);
+      background-color: var(--color-canvas-default);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    a {
+      color: var(--color-accent-fg);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    code, kbd, pre, samp {
+      font-family: var(--font-stack-mono);
+      font-size: 13px;
+    }
+
+    code {
+      background-color: var(--color-badge-bg);
+      border: 1px solid var(--color-badge-border);
+      padding: 2px 6px;
+      border-radius: var(--radius-sm);
+      color: #0f172a;
+    }
+
+    pre code {
+      background-color: transparent;
+      border: none;
+      padding: 0;
+    }
+
+    /* Page container */
+    .page-container {
+      max-width: 1260px;
+      margin: 0 auto;
+      padding: 32px 24px 64px;
+      display: flex;
+      gap: 36px;
+      align-items: flex-start;
+    }
+
+    /* Left Sidebar */
+    .sidebar {
+      width: 290px;
+      flex-shrink: 0;
+      position: sticky;
+      top: 24px;
+      max-height: calc(100vh - 48px);
+      overflow-y: auto;
+      padding-right: 12px;
+    }
+
+    .sidebar::-webkit-scrollbar {
+      width: 5px;
+    }
+    .sidebar::-webkit-scrollbar-thumb {
+      background: var(--color-border-default);
+      border-radius: 4px;
+    }
+
+    .sidebar-card {
+      border: 1px solid var(--color-border-default);
+      background: var(--color-canvas-subtle);
+      border-radius: var(--radius-md);
+      padding: 16px;
+      margin-bottom: 20px;
+      box-shadow: var(--shadow-sm);
+    }
+
+    .sidebar-logo {
+      display: block;
+      width: 80px;
+      height: 80px;
+      border-radius: 16px;
+      margin: 0 auto 12px;
+      object-fit: cover;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+      border: 2px solid #ffffff;
+    }
+
+    .sidebar-title {
+      font-size: 1.15rem;
+      font-weight: 700;
+      text-align: center;
+      color: var(--color-fg-default);
+      line-height: 1.25;
+    }
+
+    .sidebar-sub {
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      color: var(--color-fg-muted);
+      text-align: center;
+      margin-top: 4px;
+      margin-bottom: 12px;
+    }
+
+    .sidebar-desc {
+      font-size: 13px;
+      color: var(--color-fg-muted);
+      line-height: 1.45;
+      margin-bottom: 14px;
+    }
+
+    .sidebar-badge-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      font-family: var(--font-stack-mono);
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 7px;
+      border-radius: 12px;
+      background: var(--color-badge-bg);
+      color: var(--color-fg-muted);
+      border: 1px solid var(--color-badge-border);
+    }
+
+    .badge-blue {
+      background: var(--color-accent-subtle);
+      color: var(--color-accent-fg);
+      border-color: #bdd5ea;
+    }
+
+    .badge-green {
+      background: var(--color-success-subtle);
+      color: var(--color-success-fg);
+      border-color: #a0d8b3;
+    }
+
+    .badge-yellow {
+      background: var(--color-attention-subtle);
+      color: var(--color-attention-fg);
+      border-color: #e3d18c;
+    }
+
+    .sidebar-meta-list {
+      list-style: none;
+      font-size: 12.5px;
+      color: var(--color-fg-muted);
+      border-top: 1px solid var(--color-border-muted);
+      padding-top: 10px;
+    }
+
+    .sidebar-meta-list li {
+      margin-bottom: 6px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .nav-header {
+      font-size: 11.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--color-fg-subtle);
+      margin: 16px 0 8px 4px;
+    }
+
+    .nav-list {
+      list-style: none;
+      border-left: 2px solid var(--color-border-muted);
+      margin-bottom: 20px;
+    }
+
+    .nav-list li a {
+      display: block;
+      padding: 5px 12px;
+      font-size: 13px;
+      color: var(--color-fg-muted);
+      border-left: 2px solid transparent;
+      margin-left: -2px;
+      transition: all 0.15s ease-in-out;
+    }
+
+    .nav-list li a:hover {
+      color: var(--color-accent-fg);
+      border-left-color: var(--color-accent-fg);
+      background-color: var(--color-canvas-subtle);
+      text-decoration: none;
+    }
+
+    /* Main Content */
+    .content {
+      flex: 1;
+      min-width: 0;
+    }
+
+    /* Hero header */
+    .hero-banner {
+      background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      margin-bottom: 32px;
+      box-shadow: var(--shadow-sm);
+      display: flex;
+      gap: 28px;
+      align-items: center;
+    }
+
+    .hero-logo-container {
+      flex-shrink: 0;
+      text-align: center;
+    }
+
+    .hero-logo {
+      width: 140px;
+      height: 140px;
+      border-radius: 24px;
+      object-fit: cover;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.16);
+      border: 3px solid #ffffff;
+    }
+
+    .hero-text {
+      flex: 1;
+    }
+
+    .hero-title {
+      font-size: 2.2rem;
+      font-weight: 700;
+      letter-spacing: -0.025em;
+      color: var(--color-fg-default);
+      line-height: 1.2;
+      margin-bottom: 8px;
+    }
+
+    .hero-subtitle {
+      font-size: 16px;
+      color: var(--color-fg-muted);
+      margin-bottom: 16px;
+      line-height: 1.5;
+    }
+
+    .hero-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    /* Section Headings */
+    h2.section-heading {
+      font-size: 1.45rem;
+      font-weight: 600;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--color-border-default);
+      margin-top: 44px;
+      margin-bottom: 18px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--color-fg-default);
+    }
+
+    h3.sub-heading {
+      font-size: 1.15rem;
+      font-weight: 600;
+      margin-top: 24px;
+      margin-bottom: 12px;
+      color: var(--color-fg-default);
+    }
+
+    h4.sub-sub-heading {
+      font-size: 1.02rem;
+      font-weight: 600;
+      margin-top: 18px;
+      margin-bottom: 8px;
+      color: var(--color-fg-default);
+    }
+
+    p {
+      margin-bottom: 16px;
+      line-height: 1.65;
+    }
+
+    /* Lead box */
+    .lead-box {
+      background: var(--color-canvas-subtle);
+      border: 1px solid var(--color-border-default);
+      border-left: 4px solid var(--color-accent-emphasis);
+      border-radius: var(--radius-sm);
+      padding: 16px 20px;
+      margin-bottom: 24px;
+      font-size: 15px;
+    }
+
+    .lead-box p:last-child {
+      margin-bottom: 0;
+    }
+
+    /* Alert callouts */
+    .alert {
+      border-radius: var(--radius-md);
+      padding: 14px 18px;
+      margin-bottom: 20px;
+      font-size: 14px;
+      line-height: 1.55;
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+
+    .alert-note {
+      background: var(--color-accent-subtle);
+      border: 1px solid #bdd5ea;
+      color: #0c4a6e;
+    }
+
+    .alert-tip {
+      background: var(--color-success-subtle);
+      border: 1px solid #a0d8b3;
+      color: #14532d;
+    }
+
+    .alert-attention {
+      background: var(--color-attention-subtle);
+      border: 1px solid #e3d18c;
+      color: #713f12;
+    }
+
+    /* Grid cards */
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 20px;
+      margin: 20px 0 28px;
+    }
+
+    .card {
+      background: var(--color-card-bg);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: #0969da88;
+    }
+
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 1.15rem;
+      font-weight: 600;
+      color: var(--color-fg-default);
+    }
+
+    .card-meta {
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      color: var(--color-fg-muted);
+      margin-bottom: 12px;
+    }
+
+    .card-body {
+      font-size: 14px;
+      color: var(--color-fg-default);
+      flex: 1;
+    }
+
+    .card-body p {
+      margin-bottom: 10px;
+    }
+
+    .card-footer {
+      border-top: 1px solid var(--color-border-muted);
+      padding-top: 12px;
+      margin-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 12.5px;
+    }
+
+    /* Tables */
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+      margin-top: 14px;
+      margin-bottom: 24px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--color-border-default);
+      box-shadow: var(--shadow-sm);
+    }
+
+    table.md-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13.5px;
+      text-align: left;
+    }
+
+    table.md-table th {
+      background-color: var(--color-canvas-subtle);
+      color: var(--color-fg-default);
+      font-weight: 600;
+      padding: 10px 14px;
+      border-bottom: 2px solid var(--color-border-default);
+      white-space: nowrap;
+    }
+
+    table.md-table td {
+      padding: 10px 14px;
+      border-bottom: 1px solid var(--color-border-muted);
+      color: var(--color-fg-default);
+      vertical-align: top;
+    }
+
+    table.md-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    table.md-table tr:hover td {
+      background-color: #f8fafc;
+    }
+
+    /* Image / Media figures */
+    figure.media-figure {
+      margin: 20px 0 28px;
+      background: var(--color-canvas-subtle);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-md);
+      padding: 12px;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    figure.media-figure img {
+      max-width: 100%;
+      height: auto;
+      border-radius: var(--radius-sm);
+      display: block;
+      margin: 0 auto;
+    }
+
+    figcaption {
+      font-size: 13px;
+      color: var(--color-fg-muted);
+      margin-top: 10px;
+      font-style: italic;
+    }
+
+    /* Gallery 2-column or 4-column */
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 18px;
+      margin: 20px 0 28px;
+    }
+
+    .gallery-item {
+      background: var(--color-card-bg);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      box-shadow: var(--shadow-sm);
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+
+    .gallery-item:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+    }
+
+    .gallery-thumb {
+      width: 100%;
+      height: 180px;
+      object-fit: cover;
+      display: block;
+      background: #000000;
+    }
+
+    .gallery-caption {
+      padding: 12px 14px;
+    }
+
+    .gallery-caption h4 {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+
+    .gallery-caption p {
+      font-size: 12.5px;
+      color: var(--color-fg-muted);
+      margin-bottom: 0;
+      line-height: 1.45;
+    }
+
+    /* Interactive visualizer simulator container */
+    .sim-container {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      margin: 24px 0 32px;
+      box-shadow: var(--shadow-md);
+      color: #c9d1d9;
+    }
+
+    .sim-header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 12px 18px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .sim-title {
+      font-family: var(--font-stack-mono);
+      font-size: 13px;
+      font-weight: 600;
+      color: #58a6ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sim-controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .sim-btn {
+      background: #21262d;
+      color: #c9d1d9;
+      border: 1px solid #30363d;
+      padding: 4px 10px;
+      border-radius: var(--radius-sm);
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.15s ease;
+    }
+
+    .sim-btn:hover {
+      background: #30363d;
+      color: #ffffff;
+      border-color: #8b949e;
+    }
+
+    .sim-btn.active {
+      background: #1f6feb;
+      color: #ffffff;
+      border-color: #388bfd;
+    }
+
+    .sim-slider-label {
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      color: #8b949e;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .sim-slider {
+      accent-color: #58a6ff;
+      cursor: pointer;
+    }
+
+    .sim-canvas-wrap {
+      position: relative;
+      width: 100%;
+      height: 380px;
+      background: #050811;
+      overflow: hidden;
+    }
+
+    #simCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    .sim-overlay-text {
+      position: absolute;
+      top: 16px;
+      left: 20px;
+      pointer-events: none;
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      background: rgba(13, 17, 23, 0.75);
+      border: 1px solid rgba(48, 54, 61, 0.8);
+      padding: 6px 12px;
+      border-radius: var(--radius-sm);
+      color: #58a6ff;
+      backdrop-filter: blur(4px);
+    }
+
+    /* Mermaid diagrams container */
+    .mermaid-box {
+      background: var(--color-canvas-subtle);
+      border: 1px solid var(--color-border-default);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      margin: 18px 0 24px;
+      overflow-x: auto;
+      text-align: center;
+      box-shadow: var(--shadow-sm);
+    }
+
+    /* Code blocks */
+    .code-box {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      border-radius: var(--radius-md);
+      margin: 16px 0 20px;
+      overflow: hidden;
+    }
+
+    .code-header {
+      background: #161b22;
+      border-bottom: 1px solid #30363d;
+      padding: 6px 14px;
+      font-family: var(--font-stack-mono);
+      font-size: 12px;
+      color: #8b949e;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .code-content {
+      padding: 14px 16px;
+      overflow-x: auto;
+      color: #e6edf3;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    /* Footer */
+    footer.site-footer {
+      border-top: 1px solid var(--color-border-default);
+      padding-top: 24px;
+      margin-top: 48px;
+      font-size: 13.5px;
+      color: var(--color-fg-muted);
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 900px) {
+      .page-container {
+        flex-direction: column;
+        padding: 20px 16px;
+      }
+      .sidebar {
+        width: 100%;
+        position: static;
+        max-height: none;
+        overflow-y: visible;
+        padding-right: 0;
+      }
+      .hero-banner {
+        flex-direction: column;
+        text-align: center;
+      }
+      .hero-tags {
+        justify-content: center;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="page-container">
+
+    <!-- Left Sticky Sidebar -->
+    <aside class="sidebar">
+      <div class="sidebar-card">
+        <img src="assets/vangoghflow_logo.png" alt="Van Gogh Flow Logo" class="sidebar-logo">
+        <h2 class="sidebar-title">Van Gogh Flow</h2>
+        <div class="sidebar-sub">Ambient Desktop HUD Engine</div>
+        <p class="sidebar-desc">
+          A 7-year open-source research and engineering project by <b>Benjamin Pritchard</b> investigating display compositors, 100% click-through GPU surfaces, and the psychology of flow states.
+        </p>
+
+        <div class="sidebar-badge-list">
+          <span class="badge badge-blue">4 Iterations + Next</span>
+          <span class="badge badge-green">100% Click-Through</span>
+          <span class="badge">Hardware Compositing</span>
+          <span class="badge badge-yellow">AI-Accelerated (Gemini)</span>
+        </div>
+
+        <ul class="sidebar-meta-list">
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8a8 8 0 005.47 7.59c.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82a7.65 7.65 0 012-.27c.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            <a href="https://github.com/BenjaminPritchard" target="_blank" rel="noopener">@BenjaminPritchard</a>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M7.775 3.275a.75.75 0 001.06 1.06l1.25-1.25a2 2 0 112.83 2.83l-2.5 2.5a2 2 0 01-2.83 0 .75.75 0 00-1.06 1.06 3.5 3.5 0 004.95 0l2.5-2.5a3.5 3.5 0 00-4.95-4.95l-1.25 1.25zm-.65 9.45a.75.75 0 00-1.06-1.06l-1.25 1.25a2 2 0 01-2.83-2.83l2.5-2.5a2 2 0 012.83 0 .75.75 0 001.06-1.06 3.5 3.5 0 00-4.95 0l-2.5 2.5a3.5 3.5 0 004.95 4.95l1.25-1.25z"/></svg>
+            <a href="https://benjaminpritchard.github.io/" target="_blank" rel="noopener">Benjamin's Portfolio</a>
+          </li>
+          <li>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.75 2A1.75 1.75 0 000 3.75v8.5C0 13.22 1.75 14 1.75 14h12.5c.966 0 1.75-.784 1.75-1.75v-8.5C16 2.784 15.216 2 14.25 2H1.75zm12.5 1.5a.25.25 0 01.25.25v.852l-6.5 4.062L1.5 4.602V3.75a.25.25 0 01.25-.25h12.5zM1.5 6.37l5.962 3.726a1 1 0 001.076 0L14.5 6.37v5.88a.25.25 0 01-.25.25H1.75a.25.25 0 01-.25-.25V6.37z"/></svg>
+            <span>support@kundalinisoftware.com</span>
+          </li>
+        </ul>
+      </div>
+
+      <nav aria-label="Page Table of Contents">
+        <div class="nav-header">Document Navigation</div>
+        <ul class="nav-list">
+          <li><a href="#overview">1. Overview & Vision</a></li>
+          <li><a href="#flow-philosophy">2. Flow States & Brain Modes</a></li>
+          <li><a href="#compositor-concepts">3. What is a Compositor?</a></li>
+          <li><a href="#four-iterations">4. The Four Iterations</a></li>
+          <li><a href="#human-vs-ai">5. Handwritten vs. AI-Generated</a></li>
+          <li><a href="#plugin-architecture">6. Modular Plugin Architecture</a></li>
+          <li><a href="#interactive-simulator">7. Visualizer Showcase & Simulator</a></li>
+          <li><a href="#clickthrough-engineering">8. 100% Click-Through Engineering</a></li>
+          <li><a href="#comparative-matrix">9. Comprehensive Matrix</a></li>
+          <li><a href="#whats-next">10. What's Next: STM32MP2 Multicore</a></li>
+          <li><a href="#repositories">11. Repositories & License</a></li>
+        </ul>
+
+        <div class="nav-header">The Repositories</div>
+        <ul class="nav-list">
+          <li><a href="https://github.com/BenjaminPritchard/VanGoghFlow_Wayland" target="_blank" rel="noopener">VanGoghFlow_Wayland</a></li>
+          <li><a href="https://github.com/BenjaminPritchard/VanGoghFlow_macOS" target="_blank" rel="noopener">VanGoghFlow_macOS</a></li>
+          <li><a href="https://github.com/BenjaminPritchard/VanGoghFlowGTK3" target="_blank" rel="noopener">VanGoghFlowGTK3</a></li>
+          <li><a href="https://github.com/BenjaminPritchard/VanGoghFlow" target="_blank" rel="noopener">VanGoghFlow (Win64)</a></li>
+        </ul>
+      </nav>
+    </aside>
+
+    <!-- Main Content Column -->
+    <main class="content">
+
+      <!-- Hero Header Banner -->
+      <section class="hero-banner" id="overview">
+        <div class="hero-logo-container">
+          <img src="assets/vangoghflow_logo.png" alt="Van Gogh Flow Logo" class="hero-logo">
+        </div>
+        <div class="hero-text">
+          <h1 class="hero-title">Van Gogh Flow</h1>
+          <p class="hero-subtitle">
+            A 7-year engineering odyssey from Win32 C# overlays to native Wayland GLES2 and Apple Metal procedural shaders — designed to induce and sustain deep psychological flow states while preserving 100% click-through transparency.
+          </p>
+          <div class="hero-tags">
+            <span class="badge badge-blue">Windows 10 DWM (2019)</span>
+            <span class="badge badge-blue">Linux GTK3 / X11 (2021)</span>
+            <span class="badge badge-green">Linux Wayland EGL / GLES2 (2026)</span>
+            <span class="badge badge-green">macOS AppKit / Metal (2026)</span>
+            <span class="badge badge-yellow">STM32MP2 Hardware Compositing (Next)</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Lead Callout -->
+      <div class="lead-box">
+        <p>
+          <b>The Core Hypothesis:</b> By overlaying your display with subtle, organic, semi-transparent visualizations that move through the peripheral visual field, a developer or creator can modulate between <b>focused-mode execution</b> and <b>diffuse-mode ideation</b>. With instantaneous keyboard shortcuts serving as "volume keys" for visual opacity, the screen shifts seamlessly from razor-sharp text clarity to an ambient canvas inspired by Vincent van Gogh's rhythmic swirls.
+        </p>
+      </div>
+
+      <!-- Section: Flow States & Brain Modes -->
+      <section id="flow-philosophy">
+        <h2 class="section-heading">
+          <span>🧠</span>
+          <span>1. Flow States & Brain Modes: Modulating Human Attention</span>
+        </h2>
+        <p>
+          The genesis of <b>Van Gogh Flow</b> arises directly from Benjamin Pritchard's fascination with two complementary fields: the psychological dynamics of <i>flow states</i> (as conceptualized by Mihaly Csikszentmihalyi) and the neurobiology of cognitive problem-solving.
+        </p>
+        <p>
+          In modern creative engineering—whether composing music, architecting embedded firmware, or refactoring complex codebases—the mind constantly alternates between two distinct modes of thinking:
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Focused-Mode Thinking</span>
+              <span class="badge badge-blue">Concentration</span>
+            </div>
+            <div class="card-body">
+              <p>
+                Characterized by tight, analytical focus in the prefrontal cortex. You are tracking syntax trees, fixing register offsets, tracing pointer lifecycles, and calculating exact logic branches.
+              </p>
+              <p>
+                <b>In Van Gogh Flow:</b> Set opacity low (2% – 5%) or clear. The text on your monitor is crystal clear and uninterrupted.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Diffuse-Mode Thinking</span>
+              <span class="badge badge-yellow">Subconscious Insight</span>
+            </div>
+            <div class="card-body">
+              <p>
+                Characterized by resting-state, panoramic neural network activation. The mind steps back, connects distant concepts, perceives architectural paradigms, and discovers novel solutions to stubborn roadblocks.
+              </p>
+              <p>
+                <b>In Van Gogh Flow:</b> Dial opacity up (15% – 30%). The screen softens into swirling cosmic plasma, relaxing focused vigilance and inviting creative association.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <figure class="media-figure">
+          <img src="assets/FocusVsDiffused.jpeg" alt="Focused Mode vs. Diffuse Mode Neural Firing Model" style="max-height: 380px;">
+          <figcaption>
+            Figure 1: Neural activation patterns between Focused Mode (tight, localized pinball paths) and Diffuse Mode (wide, exploratory subconscious associations across the entire brain). From Kundalini Software research archives.
+          </figcaption>
+        </figure>
+
+        <p>
+          Vincent van Gogh's masterpiece <i>The Starry Night</i> embodies this principle in paint: turbulent fluid motion, vibrant glowing halos, and organic undulating currents. Rather than static wallpaper or distracting flashing banners, <b>Van Gogh Flow</b> treats the monitor as an interactive optical lens where ambient peripheral motion acts as an anchor for the subconscious mind.
+        </p>
+      </section>
+
+      <!-- Section: What is a Compositor? -->
+      <section id="compositor-concepts">
+        <h2 class="section-heading">
+          <span>🖥️</span>
+          <span>2. What is a Compositor? The Paradigm Shift in Windowing</span>
+        </h2>
+        <p>
+          To understand why Van Gogh Flow required four distinct rewrites over seven years, one must understand how graphical operating systems have fundamentally evolved.
+        </p>
+
+        <h3 class="sub-heading">The Old Era: Shared Framebuffers & Redraw Storms (Win32 & Classic X11)</h3>
+        <p>
+          In classical windowing systems—such as legacy <b>Win32</b> (Windows 95 through Windows XP) and classic non-composited <b>X11</b>:
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px;">
+          <li>Application windows painted their pixels directly into a <b>shared, single screen buffer</b>.</li>
+          <li>When you dragged or resized a window over another, the OS calculated "dirty regions" and bombarded every obscured window with repaint messages (such as Win32's <code>WM_PAINT</code> or X11 <code>Expose</code> events).</li>
+          <li>Each program had to synchronously repaint its exposed rectangles on demand.</li>
+          <li>If an application locked up, blocked in I/O, or lagged, it missed redraw messages—producing the infamous <b>"Windows Solitaire trail"</b> where window borders smeared endlessly across your desktop.</li>
+          <li>True, full-screen transparent overlays across independent running apps were virtually impossible without severe flicker, CPU thrashing, and clipping glitches.</li>
+        </ul>
+
+        <h3 class="sub-heading">The Modern Era: Compositors as 3D Scene Directors</h3>
+        <p>
+          Modern graphical operating systems—pioneered by Apple's <b>Quartz Compositor</b> in Mac OS X, Microsoft's <b>Desktop Window Manager (DWM)</b> in Windows Vista/7/10, and modern Linux <b>Wayland compositors</b> (Sway, Wayfire, Hyprland, Labwc):
+        </p>
+        <ul style="margin-left: 24px; margin-bottom: 16px;">
+          <li><b>Every application renders into its own private, off-screen GPU memory texture.</b> No application ever draws on top of another application's memory.</li>
+          <li>The <b>Compositor</b> acts as a real-time 3D game engine. Every VSync tick (60Hz, 120Hz ProMotion, or 144Hz+), the compositor gathers these textures, positions them in 3D depth layers, applies GPU hardware alpha blending, and presents the composite frame to the monitor.</li>
+          <li><b>Zero tearing, zero redraw storms, zero Solitaire trails.</b></li>
+        </ul>
+
+        <div class="mermaid-box">
+          <pre class="mermaid">
+flowchart TD
+    subgraph Traditional["Legacy Windowing (Classic X11 & Win32 WM_PAINT)"]
+        direction TB
+        AppA["App Window A"] -->|"Direct paint"| Shared["Shared Single Framebuffer"]
+        AppB["App Window B"] -->|"Direct paint"| Shared
+        Shared -.->|"Lagging app misses WM_PAINT"| Ghost["Window Searing & Solitaire Ghost Trails"]
+    end
+
+    subgraph Modern["Modern Compositors (Wayland / macOS Quartz / Win10 DWM)"]
+        direction TB
+        T1["Editor Texture (Offscreen GPU VRAM)"] --> Comp["Compositor Engine (GPU Hardware Alpha Blending)"]
+        T2["Browser Texture (Offscreen GPU VRAM)"] --> Comp
+        T3["Van Gogh Flow HUD (Translucent VRAM Layer)"] --> Comp
+        Comp --> Monitor["Display Panel (Tear-Free VSync Synchronized)"]
+    end
+          </pre>
+        </div>
+
+        <p>
+          Because modern display servers natively blend off-screen surfaces on the GPU, <b>Van Gogh Flow</b> can float full-screen visualizers over your code editors, terminals, and browsers with absolute transparency, native display refresh rates, and zero performance penalty for the applications underneath.
+        </p>
+      </section>
+
+      <!-- Section: The Four Iterations -->
+      <section id="four-iterations">
+        <h2 class="section-heading">
+          <span>🏛️</span>
+          <span>3. The Four Iterations: A Seven-Year Architectural Evolution</span>
+        </h2>
+        <p>
+          The quest to build the ideal ambient desktop visualizer progressed through four distinct generational paradigms, spanning four different operating systems, four graphics architectures, and four input pass-through models:
+        </p>
+
+        <div class="mermaid-box">
+          <pre class="mermaid">
+flowchart LR
+    subgraph G1["Iteration 1 (2019)<br/>Windows 10"]
+        direction TB
+        A1["C# (.NET 4.7.2)"]
+        A2["CefSharp / CEF"]
+        A3["Win32 WS_EX_TRANSPARENT"]
+        A4["YouTube Streams"]
+    end
+
+    subgraph G2["Iteration 2 (2021)<br/>Linux X11"]
+        direction TB
+        B1["Pure C (C11)"]
+        B2["GTK+ 3.0 / WebKit2GTK"]
+        B3["Cairo Shape Combine"]
+        B4["libappindicator3 Tray"]
+    end
+
+    subgraph G3["Iteration 3 (2026)<br/>Linux Wayland"]
+        direction TB
+        C1["Modern C++ (C++17)"]
+        C2["zwlr_layer_shell_v1"]
+        C3["Direct EGL & GLES2 Shaders"]
+        C4["Empty wl_region (100% Click-Thru)"]
+    end
+
+    subgraph G4["Iteration 4 (2026)<br/>macOS"]
+        direction TB
+        D1["Objective-C++ / C++17"]
+        D2["Apple Metal & MetalKit"]
+        D3["AppKit ignoresMouseEvents"]
+        D4["Multi-Space HUD Persistence"]
+    end
+
+    G1 -->|"Migrate to Linux"| G2
+    G2 -->|"AI-Accelerated Leap (Gemini)"| G3
+    G3 -->|"Cross-Platform Port (Gemini)"| G4
+          </pre>
+        </div>
+
+        <!-- Iteration 1 Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3 class="card-title">Iteration 1: VanGoghFlow for Windows 10 (June 2019)</h3>
+            <span class="badge badge-blue">Windows 10 DWM</span>
+          </div>
+          <div class="card-meta">
+            Language: C# (.NET Framework 4.7.2) | Windowing: WinForms / Win32 API | Renderer: CefSharp (CEF) | Author: Handcrafted by Benjamin Pritchard
+          </div>
+          <div class="card-body">
+            <p>
+              The original prototype that established the Van Gogh Flow concept. Implemented in Visual Studio 2019 for Windows 10 64-bit.
+            </p>
+            <p>
+              <b>Technical Architecture:</b> Utilized the Windows Desktop Window Manager (DWM) compositing engine. Form creation overridden in <code>CreateParams</code> to inject Win32 extended window styles:
+              <code>cp.ExStyle |= WS_EX_LAYERED (0x80000) | WS_EX_TRANSPARENT (0x20) | WS_EX_TOOLWINDOW (0x80)</code>.
+              Embedded the Chromium Embedded Framework via CefSharp to stream user-configurable YouTube meditation/art videos read from a local <code>VanGoghFlow.INI</code> configuration file.
+            </p>
+            <p>
+              <b>Controls:</b> System-wide hotkeys registered via <code>RegisterHotKey()</code>:
+              <code>Ctrl+Alt+N</code> (next video), <code>Ctrl+Alt+P</code> (previous video), <code>Ctrl+Alt+I</code> (increase opacity / more diffuse), and <code>Ctrl+Alt+D</code> (decrease opacity / more focus).
+            </p>
+          </div>
+          <div class="card-footer">
+            <span>Repository: <a href="https://github.com/BenjaminPritchard/VanGoghFlow" target="_blank" rel="noopener">BenjaminPritchard/VanGoghFlow</a></span>
+            <span class="badge">Original Prototype</span>
+          </div>
+        </div>
+
+        <!-- Iteration 2 Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3 class="card-title">Iteration 2: VanGoghFlowGTK3 for Linux X11 (August 2021)</h3>
+            <span class="badge badge-blue">Linux X11 Compositing</span>
+          </div>
+          <div class="card-meta">
+            Language: Pure C (C11) | Windowing: GTK+ 3.0 / X11 | Renderer: WebKit2GTK (4.0) | Author: Handcrafted by Benjamin Pritchard
+          </div>
+          <div class="card-body">
+            <p>
+              Benjamin's migration of the HUD concept to his primary Linux development environment (Linux Mint with the Muffin compositing window manager).
+            </p>
+            <p>
+              <b>Technical Architecture:</b> Re-engineered from scratch in performant C11 compiled with Clang. Eliminated the .NET runtime dependency. Configured RGBA visual support via <code>gdk_screen_get_rgba_visual()</code>. To achieve click-through under X11, created an empty 0x0 Cairo rectangle (<code>cairo_region_create_rectangle(&rect)</code>) and combined it into the window input shape via <code>gdk_window_input_shape_combine_region()</code>.
+            </p>
+            <p>
+              <b>Controls:</b> Integrated global XInput keyboard hooks mapping <code>F3</code> / <code>F4</code> like audio volume keys to dynamically step window opacity up and down, paired with a system tray menu built with <code>libappindicator3</code>.
+            </p>
+          </div>
+          <div class="card-footer">
+            <span>Repository: <a href="https://github.com/BenjaminPritchard/VanGoghFlowGTK3" target="_blank" rel="noopener">BenjaminPritchard/VanGoghFlowGTK3</a></span>
+            <span class="badge">Linux X11 Milestone</span>
+          </div>
+        </div>
+
+        <!-- Iteration 3 Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3 class="card-title">Iteration 3: Van Gogh Flow for Wayland (October 2026)</h3>
+            <span class="badge badge-green">Wayland Layer Shell</span>
+          </div>
+          <div class="card-meta">
+            Language: Modern C++ (C++17) | Protocol: zwlr_layer_shell_v1 | Renderer: EGL & OpenGL ES 2.0 | Co-Engineered: Benjamin Pritchard & Google Gemini (1-Day Generation)
+          </div>
+          <div class="card-body">
+            <p>
+              A revolutionary leap that discarded heavyweight browser runtimes and YouTube streaming entirely in favor of lightweight, mathematically pure, procedural GPU shaders.
+            </p>
+            <p>
+              <b>Technical Breakthroughs:</b>
+            </p>
+            <ul style="margin-left: 20px; margin-bottom: 10px;">
+              <li><b>Zero Web Engine:</b> Replaced Chromium/WebKit with native GLSL fragment/vertex shaders running directly on the GPU at native monitor refresh rates (60Hz to 240Hz) with under 25MB RAM and 0.5% CPU.</li>
+              <li><b>Layer Shell Protocol:</b> Directly binds to <code>zwlr_layer_shell_v1</code> on <code>ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY</code>, floating above all tiled, floating, and fullscreen windows on wlroots compositors (Wayfire, Sway, Hyprland, Labwc).</li>
+              <li><b>The 100% Click-Through Guarantee:</b> Discarded GTK and Qt (whose layout managers inadvertently trap mouse clicks) to interface directly with <code>wayland-client</code>. Sets an empty input region via <code>wl_surface_set_input_region(surface, empty_region)</code>, guaranteeing that pointer clicks, drag-and-drops, and scroll gestures fall through to foreground windows without exception.</li>
+              <li><b>Modular Plugin Architecture:</b> Clean C++ plugin engine (<code>plugin.hpp</code>) with self-registering factory macros.</li>
+            </ul>
+          </div>
+          <div class="card-footer">
+            <span>Repository: <a href="https://github.com/BenjaminPritchard/VanGoghFlow_Wayland" target="_blank" rel="noopener">BenjaminPritchard/VanGoghFlow_Wayland</a></span>
+            <span class="badge badge-green">Wayland Flagship</span>
+          </div>
+        </div>
+
+        <!-- Iteration 4 Card -->
+        <div class="card" style="margin-bottom: 24px;">
+          <div class="card-header">
+            <h3 class="card-title">Iteration 4: Van Gogh Flow for macOS (October 2026)</h3>
+            <span class="badge badge-green">Apple Metal & Quartz</span>
+          </div>
+          <div class="card-meta">
+            Language: Objective-C++ / C++17 | Windowing: AppKit / Quartz WindowServer | Renderer: Apple Metal (MSL) | Co-Engineered: Benjamin Pritchard & Google Gemini (Same-Day Generation)
+          </div>
+          <div class="card-body">
+            <p>
+              Ported to macOS on the very same day as the Wayland rewrite, bringing the new procedural shader architecture to Apple Silicon and Intel Macs.
+            </p>
+            <p>
+              <b>Technical Breakthroughs:</b>
+            </p>
+            <ul style="margin-left: 20px; margin-bottom: 10px;">
+              <li><b>Native Metal Shading Language (MSL):</b> Leverages <code>CAMetalLayer</code> and <code>MTKView</code> for sub-millisecond frame dispatch on Apple Silicon unified memory architecture, with synchronized ProMotion (120Hz) frame pacing.</li>
+              <li><b>WindowServer Click-Through:</b> Enforces <code>[window setIgnoresMouseEvents:YES]</code> at the operating system window manager level. Every mouse event, scroll wheel tick, and gesture bypasses the HUD.</li>
+              <li><b>Spaces & Mission Control Persistence:</b> Configured with <code>NSWindowCollectionBehaviorCanJoinAllSpaces | NSWindowCollectionBehaviorStationary</code>. The HUD remains anchored across virtual desktop swipes and Exposé transitions.</li>
+              <li><b>Zero-Dependency Tooling:</b> Compiles MSL shaders directly in memory at runtime via <code>newLibraryWithSource:options:error:</code>, allowing instantaneous builds from the command line using standard Command Line Tools without heavy Xcode dependencies.</li>
+            </ul>
+          </div>
+          <div class="card-footer">
+            <span>Repository: <a href="https://github.com/BenjaminPritchard/VanGoghFlow_macOS" target="_blank" rel="noopener">BenjaminPritchard/VanGoghFlow_macOS</a></span>
+            <span class="badge badge-green">macOS Flagship</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Handwritten vs AI-Generated -->
+      <section id="human-vs-ai">
+        <h2 class="section-heading">
+          <span>⚡</span>
+          <span>4. Handwritten Foundations vs. AI-Generated Velocity</span>
+        </h2>
+        <p>
+          One of the most compelling aspects of the <b>Van Gogh Flow</b> story is how human domain expertise and modern generative AI synthesized to produce a 10x engineering leap.
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Iterations 1 & 2 (2019 – 2021)</span>
+              <span class="badge">Human Exploration</span>
+            </div>
+            <div class="card-body">
+              <p>
+                <b>Written 100% by hand by Benjamin Pritchard.</b> Required weeks of trial-and-error discovery: discovering Win32 <code>WS_EX_LAYERED</code> subtleties, adapting Cairo input shape combine algorithms from obscure GitHub gists, bundling multi-megabyte Chromium/WebKit runtimes, and wrestling with video codecs.
+              </p>
+              <p>
+                These handcrafted prototypes proved the fundamental hypothesis: <i>transparent visual motion in the peripheral visual field enhances deep focus</i>.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Iterations 3 & 4 (October 2026)</span>
+              <span class="badge badge-yellow">AI-Generated in 1 Day</span>
+            </div>
+            <div class="card-body">
+              <p>
+                <b>Architected and generated in a single day using Google Gemini.</b> Guided by Benjamin's deep experience with Linux display servers, compositor protocols, and graphics pipelines, Gemini was prompted to discard web browsers and synthesize:
+              </p>
+              <ul style="margin-left: 18px; margin-bottom: 0;">
+                <li>The entire direct Wayland EGL/GLES2 client and protocol loops.</li>
+                <li>The full macOS AppKit and Metal pipeline with runtime shader compilation.</li>
+                <li>A clean, cross-platform modular plugin interface.</li>
+                <li>Four complete mathematical procedural GLSL/MSL shaders.</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+
+        <div class="alert alert-tip">
+          <div>
+            <b>The Generative Takeaway:</b> AI did not replace the engineer—it acted as an ultra-high-velocity compiler for architectural intent. Because Benjamin deeply understood compositing managers, layer shell protocols, and click-through windowing semantics, he could orchestrate Gemini to produce two battle-hardened native systems binaries in under 24 hours.
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Modular Plugin Architecture -->
+      <section id="plugin-architecture">
+        <h2 class="section-heading">
+          <span>🔌</span>
+          <span>5. The Modular Shader Plugin Architecture</span>
+        </h2>
+        <p>
+          The third and fourth iterations introduced a unified, self-registering plugin architecture. Instead of hardcoded rendering loops, every visualizer implements a lean, standardized interface:
+        </p>
+
+        <div class="mermaid-box">
+          <pre class="mermaid">
+flowchart TD
+    subgraph Host["Host Application Driver (Wayland / macOS)"]
+        W1["Window Creation & Surface Setup"]
+        W2["Input Region Set to Empty (100% Pass-Through)"]
+        W3["VSync Frame Loop Pacing (wl_surface_frame / CVDisplayLink)"]
+        W4["Global Plugin Registry (PluginRegistry::get())"]
+    end
+
+    Host --> Interface["Plugin Virtual Interface (plugin.hpp)"]
+
+    subgraph Interface["Plugin Interface"]
+        I1["init(width, height) : Compile Shaders & Buffers"]
+        I2["resize(width, height) : Update Viewport & Aspect Uniforms"]
+        I3["render(dt, master_opacity) : Clear Alpha & Draw Procedural Frame"]
+    end
+
+    Interface --> P_Aurora["Aurora Plugin<br/>(GLSL/MSL Plasma)"]
+    Interface --> P_Starfield["Starfield Plugin<br/>(3D Point Sprites)"]
+    Interface --> P_Matrix["Matrix Plugin<br/>(Green Code Rain)"]
+    Interface --> P_Fireflies["Fireflies Plugin<br/>(Soft Bioluminescent Orbs)"]
+          </pre>
+        </div>
+
+        <p>
+          Creating a new visualizer requires zero changes to the core display driver. The developer simply creates a new subclass and registers it with a macro:
+        </p>
+
+        <div class="code-box">
+          <div class="code-header">
+            <span>plugins/my_visualizer/my_visualizer.cpp</span>
+            <span>C++17</span>
+          </div>
+          <div class="code-content">
+            <pre><code>#include "plugin.hpp"
+#include &lt;GLES2/gl2.h&gt;
+
+class MyFlowPlugin : public Plugin {
+public:
+    std::string name() const override { return "my_flow"; }
+    std::string description() const override { return "Organic fluid flow waves"; }
+
+    bool init(int width, int height) override {
+        // Compile GLSL / MSL shaders and initialize vertex buffers
+        resize(width, height);
+        return true;
+    }
+
+    void resize(int width, int height) override {
+        m_width = width; m_height = height;
+        glViewport(0, 0, width, height);
+    }
+
+    void render(float dt, float master_opacity) override {
+        m_time += dt;
+        // 1. Maintain complete background transparency
+        glClearColor(0.0f, 0.0f, 0.0f, 0.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        // 2. Blend procedural colors using GPU alpha channels
+        glEnable(GL_BLEND);
+        glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+        // 3. Dispatch shader pass with dt, m_time, and master_opacity
+    }
+private:
+    int m_width = 0, m_height = 0;
+    float m_time = 0.0f;
+};
+
+// Automatic registration into global factory registry at static initialization
+REGISTER_PLUGIN(MyFlowPlugin);</code></pre>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Visualizer Showcase & Interactive Simulator -->
+      <section id="interactive-simulator">
+        <h2 class="section-heading">
+          <span>🌌</span>
+          <span>6. Visualizer Showcase & Interactive Browser Simulator</span>
+        </h2>
+        <p>
+          Each shader plugin was mathematically engineered to evoke a specific cognitive texture. Experience them interactively right in your browser below, or review the high-resolution screenshots captured directly from running Wayland and macOS sessions:
+        </p>
+
+        <!-- Interactive Canvas Simulator -->
+        <div class="sim-container">
+          <div class="sim-header">
+            <div class="sim-title">
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M9.504.43a1.5 1.5 0 011.264.508l4.293 4.294c.328.328.509.77.509 1.233v7.035A2.5 2.5 0 0113.07 16H2.93a2.5 2.5 0 01-2.5-2.5V2.5A2.5 2.5 0 012.93 0h6.574zm.246 1.57H2.93a1 1 0 00-1 1v11a1 1 0 001 1h10.14a1 1 0 001-1V6.465l-4.32-4.32a.5.5 0 00-.246-.145z"/></svg>
+              <span>Live Visualizer Simulation</span>
+            </div>
+            <div class="sim-controls">
+              <button class="sim-btn active" id="btnAurora" onclick="setSimMode('aurora')">Aurora</button>
+              <button class="sim-btn" id="btnStarfield" onclick="setSimMode('starfield')">Starfield</button>
+              <button class="sim-btn" id="btnMatrix" onclick="setSimMode('matrix')">Matrix</button>
+              <button class="sim-btn" id="btnFireflies" onclick="setSimMode('fireflies')">Fireflies</button>
+              <div class="sim-slider-label">
+                <span>Opacity:</span>
+                <input type="range" id="opacitySlider" class="sim-slider" min="0.05" max="1.0" step="0.05" value="0.35" oninput="updateSimOpacity(this.value)">
+                <span id="opacityVal" style="width: 32px; display: inline-block;">35%</span>
+              </div>
+            </div>
+          </div>
+          <div class="sim-canvas-wrap">
+            <canvas id="simCanvas"></canvas>
+            <div class="sim-overlay-text" id="simStatus">Plugin: Aurora (Cosmic Van Gogh Plasma)</div>
+          </div>
+        </div>
+
+        <!-- Live Demonstration GIF & macOS Screen Capture -->
+        <div class="card-grid" style="grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));">
+          <div class="gallery-item">
+            <img src="assets/vangoghflow_demo.gif" alt="Wayland Live Animation Cycling Plugins" class="gallery-thumb" style="height: 240px;">
+            <div class="gallery-caption">
+              <h4>Live Wayland Compositor Session</h4>
+              <p>Real-time screen capture cycling through Aurora, Starfield, Matrix, and Fireflies plugins running as an overlay above active terminals and editors on Linux Wayland.</p>
+            </div>
+          </div>
+
+          <div class="gallery-item">
+            <img src="assets/vangoghflow_macos_screenshot.png" alt="macOS Real-Time Metal HUD Screenshot" class="gallery-thumb" style="height: 240px;">
+            <div class="gallery-caption">
+              <h4>macOS Metal HUD Screen Capture</h4>
+              <p>Van Gogh Flow running transparently across macOS desktop, pinned across Mission Control spaces with 100% click-through pass-through to Finder and development tools.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Four Shaders Gallery Grid -->
+        <div class="gallery-grid">
+          <div class="gallery-item">
+            <img src="assets/aurora.png" alt="Aurora Plugin" class="gallery-thumb">
+            <div class="gallery-caption">
+              <h4>aurora</h4>
+              <p>Flowing cosmic plasma ribbons and harmonic undulating waves directly inspired by Vincent van Gogh's <i>The Starry Night</i> sky dynamics.</p>
+            </div>
+          </div>
+
+          <div class="gallery-item">
+            <img src="assets/starfield.png" alt="Starfield Plugin" class="gallery-thumb">
+            <div class="gallery-caption">
+              <h4>starfield</h4>
+              <p>3D warp-speed particles with multi-colored twinkling point sprites accelerating toward the viewer, fostering forward momentum and immersion.</p>
+            </div>
+          </div>
+
+          <div class="gallery-item">
+            <img src="assets/matrix.png" alt="Matrix Plugin" class="gallery-thumb">
+            <div class="gallery-caption">
+              <h4>matrix</h4>
+              <p>Cyberpunk digital rain cascades with glowing phosphor-green trails, fading phosphors, and bright leading glyphs for deep coding sessions.</p>
+            </div>
+          </div>
+
+          <div class="gallery-item">
+            <img src="assets/fireflies.png" alt="Fireflies Plugin" class="gallery-thumb">
+            <div class="gallery-caption">
+              <h4>fireflies</h4>
+              <p>Luminous floating bioluminescent particles and drifting neon embers with smooth soft radial halos and calming Brownian motion.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: 100% Click-Through Engineering -->
+      <section id="clickthrough-engineering">
+        <h2 class="section-heading">
+          <span>🖱️</span>
+          <span>7. Engineering the 100% Click-Through Guarantee</span>
+        </h2>
+        <p>
+          The most difficult technical challenge in building an ambient desktop visualizer is ensuring that <b>100% of user input falls through to applications underneath</b>.
+        </p>
+        <p>
+          If even a single mouse click, scroll wheel tick, drag-and-drop gesture, or keyboard shortcut is intercepted by the visualizer, the user's flow state is instantly shattered. Here is how each iteration solved this challenge at the operating system level:
+        </p>
+
+        <div class="table-container">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th>Platform</th>
+                <th>Underlying API</th>
+                <th>Mechanism</th>
+                <th>Why High-Level Toolkits Fail</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Windows 10</b></td>
+                <td>Win32 Extended Styles</td>
+                <td><code>WS_EX_LAYERED | WS_EX_TRANSPARENT</code></td>
+                <td>Standard WinForms/WPF windows without <code>WS_EX_TRANSPARENT</code> trap cursor hits and trigger window activation borders.</td>
+              </tr>
+              <tr>
+                <td><b>Linux X11</b></td>
+                <td>Cairo & XFixes</td>
+                <td><code>cairo_region_create_rectangle({0,0,0,0})</code> via <code>gdk_window_input_shape_combine_region</code></td>
+                <td>Standard X11 windows claim the entire bounding rectangle for mouse events unless an empty shape mask is explicitly registered.</td>
+              </tr>
+              <tr>
+                <td><b>Linux Wayland</b></td>
+                <td>Direct <code>wayland-client</code></td>
+                <td><code>wl_surface_set_input_region(surface, empty_region)</code> on <code>zwlr_layer_shell_v1</code></td>
+                <td><b>Crucial Finding:</b> Toolkits like GTK or Qt silently overwrite and recalculate the <code>wl_surface</code> input mask during internal layout passes. Only direct protocol interaction guarantees permanent click-through.</td>
+              </tr>
+              <tr>
+                <td><b>macOS</b></td>
+                <td>AppKit & WindowServer</td>
+                <td><code>[window setIgnoresMouseEvents:YES]</code></td>
+                <td>Tells Apple's WindowServer to skip the window entirely during hit-testing, allowing clicks to pass through without waking the HUD process.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: Comprehensive Matrix -->
+      <section id="comparative-matrix">
+        <h2 class="section-heading">
+          <span>📊</span>
+          <span>8. Comprehensive Architectural Comparison Matrix</span>
+        </h2>
+        <p>
+          A side-by-side technical breakdown across all four completed iterations plus the upcoming embedded hardware generation:
+        </p>
+
+        <div class="table-container">
+          <table class="md-table">
+            <thead>
+              <tr>
+                <th>Metric / Feature</th>
+                <th>Iteration 1 (2019)<br/>Windows</th>
+                <th>Iteration 2 (2021)<br/>Linux GTK3</th>
+                <th>Iteration 3 (2026)<br/>Linux Wayland</th>
+                <th>Iteration 4 (2026)<br/>macOS</th>
+                <th>Iteration 5 (Next)<br/>STM32MP2 Embedded</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><b>Primary OS</b></td>
+                <td>Windows 10 (64-bit)</td>
+                <td>Linux (X11)</td>
+                <td>Linux (Wayland)</td>
+                <td>macOS 12+ (Apple Silicon/Intel)</td>
+                <td>Embedded Linux + Bare Metal</td>
+              </tr>
+              <tr>
+                <td><b>Implementation</b></td>
+                <td>C# (.NET 4.7.2)</td>
+                <td>Pure C (C11)</td>
+                <td>Modern C++ (C++17)</td>
+                <td>Objective-C++ / C++17</td>
+                <td>C / C++ (Linux) + Bare Metal C (M33)</td>
+              </tr>
+              <tr>
+                <td><b>Authoring Model</b></td>
+                <td>Handcrafted by Benjamin</td>
+                <td>Handcrafted by Benjamin</td>
+                <td><b>AI-Generated (Gemini) in 1 day</b></td>
+                <td><b>AI-Generated (Gemini) in 1 day</b></td>
+                <td>Embedded Systems Engineering</td>
+              </tr>
+              <tr>
+                <td><b>Graphics Pipeline</b></td>
+                <td>Chromium Embedded (CEF)</td>
+                <td>WebKit2GTK</td>
+                <td>EGL + Native OpenGL ES 2.0</td>
+                <td>Apple Metal (MSL) + MetalKit</td>
+                <td>Hardware LTDC Layers + LVDS/DSI</td>
+              </tr>
+              <tr>
+                <td><b>Visual Source</b></td>
+                <td>YouTube Video Streams</td>
+                <td>YouTube Video Streams</td>
+                <td>Procedural GLSL Shaders</td>
+                <td>Procedural Metal Shaders</td>
+                <td>Real-time Heterogeneous Hardware Planes</td>
+              </tr>
+              <tr>
+                <td><b>Compositor Level</b></td>
+                <td>Desktop Window Manager (DWM)</td>
+                <td>Muffin / Compiz / Mutter</td>
+                <td><code>zwlr_layer_shell_v1</code> (OVERLAY)</td>
+                <td>Quartz Compositor / WindowServer</td>
+                <td>Silicon LTDC Hardware Compositing (RIF)</td>
+              </tr>
+              <tr>
+                <td><b>RAM Consumption</b></td>
+                <td>~350 MB</td>
+                <td>~280 MB</td>
+                <td><b>&lt; 25 MB</b></td>
+                <td><b>&lt; 35 MB</b></td>
+                <td><b>Zero Linux GPU overhead (M33 RAM)</b></td>
+              </tr>
+              <tr>
+                <td><b>Binary Size</b></td>
+                <td>~120 MB (with CEF)</td>
+                <td>~65 MB (with WebKit)</td>
+                <td><b>&lt; 250 KB (standalone)</b></td>
+                <td><b>&lt; 300 KB (standalone)</b></td>
+                <td>Microcontroller footprint</td>
+              </tr>
+              <tr>
+                <td><b>Plugin System</b></td>
+                <td>INI file (URL list)</td>
+                <td>Hardcoded URLs</td>
+                <td>Extensible C++ Registry</td>
+                <td>Extensible Metal Registry</td>
+                <td>RIF-Isolated Hardware Sub-blocks</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Section: What's Next: STM32MP2 Multicore -->
+      <section id="whats-next">
+        <h2 class="section-heading">
+          <span>🚀</span>
+          <span>9. What's Next: Embedded Linux & Real-Time Multicore Compositing on STM32MP2</span>
+        </h2>
+
+        <div class="lead-box">
+          <p>
+            <b>Coming Soon:</b> The next frontier of Van Gogh Flow transcends desktop operating systems to run on industrial heterogeneous multicore silicon. Benjamin Pritchard is architecting <b>Van Gogh Flow Embedded</b> on the <b>STMicroelectronics STM32MP2 platform</b>, unifying his professional background in Embedded Linux, real-time bare-metal firmware, and hardware display compositing.
+          </p>
+        </div>
+
+        <p>
+          Benjamin's engineering career is grounded in mission-critical embedded systems: writing deterministic bare-metal microcontroller firmware, authoring Linux kernel device drivers, and developing custom Board Support Packages (BSPs) with Yocto and Buildroot.
+        </p>
+        <p>
+          The <b>STM32MP2</b> (specifically the STM32MP25 family) presents a groundbreaking hardware architecture perfectly tailored to the Van Gogh Flow philosophy:
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">Dual 64-bit Arm Cortex-A35</span>
+              <span class="badge badge-blue">Embedded Linux Core</span>
+            </div>
+            <div class="card-body">
+              <p>
+                Runs OpenSTLinux (Yocto-based Linux distribution with mainline kernel support, Wayland/Weston graphics stack, and network connectivity).
+              </p>
+              <p>
+                Drives the primary application user interface (e.g., diagnostic gauges, data dashboards, or industrial controls) mapped to <b>LTDC Layer 1 and Layer 2</b>.
+              </p>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">400 MHz Arm Cortex-M33</span>
+              <span class="badge badge-green">Real-Time Core</span>
+            </div>
+            <div class="card-body">
+              <p>
+                Dedicated real-time secure microcontroller core running bare-metal C or FreeRTOS with zero OS scheduler latency and deterministic interrupt response.
+              </p>
+              <p>
+                Directly generates the procedural Van Gogh Flow ambient overlays mapped to an isolated <b>LTDC hardware layer</b>.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <h3 class="sub-heading">Hardware Display Compositing via LTDC & RIF (Resource Isolation Framework)</h3>
+        <p>
+          In traditional embedded systems, sharing a single physical display panel (such as an internal LVDS or MIPI-DSI screen) between two processor cores requires complex inter-processor communication (IPC), shared memory ring buffers, and heavy software blitting on the Linux host.
+        </p>
+        <p>
+          On the STM32MP2, the <b>LCD-TFT Display Controller (LTDC)</b> performs <b>compositing directly in silicon</b>:
+        </p>
+        <ul style="margin-left: 20px; margin-bottom: 16px;">
+          <li><b>Hardware Layer Blending:</b> The LTDC supports multiple independent hardware graphic layers with hardware alpha blending, color-keying, and scan-out window positioning.</li>
+          <li><b>RIF (Resource Isolation Framework) Security:</b> The STM32MP2 features ST's advanced RIF architecture, which enforces hardware peripheral and memory firewalls using Context Identification (CID filtering: CID1 for Cortex-A35, CID2 for Cortex-M33).</li>
+          <li><b>Independent Layer Ownership:</b> Through RIF configuration, the LTDC's overlay layer registers and dedicated DDR/SRAM framebuffer are assigned exclusively to the bare-metal <b>Cortex-M33</b>, while the base layers belong to the Linux-driven <b>Cortex-A35</b>.</li>
+          <li><b>Zero Linux Overhead & Zero Jitter:</b> The LTDC hardware blends both streams in real-time during raster scan-out to the internal LVDS display peripheral. Even if the Embedded Linux environment experiences 100% CPU utilization, disk thrashing, or kernel latency, the M33's ambient flow visualizer continues updating smoothly at real-time speeds without dropping a single frame!</li>
+        </ul>
+
+        <div class="mermaid-box">
+          <pre class="mermaid">
+flowchart TD
+    subgraph MP2["STMicroelectronics STM32MP2 (Heterogeneous Multicore SoC)"]
+        direction TB
+
+        subgraph A35["Cortex-A35 (Dual 64-bit Cores)"]
+            OS["Embedded Linux (OpenSTLinux / Yocto)"]
+            HMI["Main HMI / Dashboard / Network GUI"]
+            HMI -->|"Linux DRM/KMS Driver"| L1["LTDC Layer 1 & 2 (Base Graphic Plane)"]
+        end
+
+        subgraph RIF["Resource Isolation Framework (RIF Firewall)"]
+            direction LR
+            CID1["CID1: Linux Domain (A35)"]
+            CID2["CID2: Real-Time Domain (M33)"]
+        end
+
+        subgraph M33["Cortex-M33 (400 MHz Real-Time Core)"]
+            RT["Bare-Metal Firmware / FreeRTOS"]
+            VGF["Van Gogh Flow Procedural Engine"]
+            VGF -->|"Direct Memory Access"| L3["LTDC Layer 3 (Overlay Graphic Plane)"]
+        end
+
+        subgraph LTDC["LTDC (LCD-TFT Display Controller Peripheral)"]
+            Blender["Hardware Pixel Alpha Blender (Real-Time Scan-Out)"]
+            L1 --> Blender
+            L3 --> Blender
+        end
+
+        Blender --> LVDS["Internal LVDS / MIPI-DSI Interface"]
+    end
+
+    LVDS --> Panel["Physical LVDS Industrial Display Panel (Real-Time Blended Composite)"]
+          </pre>
+        </div>
+
+        <div class="alert alert-note">
+          <div>
+            <b>Technical Vision:</b> This upcoming embedded edition represents the ultimate fusion of Benjamin's core passions: low-level display server compositing, deterministic real-time microcontroller programming, and psychological flow states. Development is underway—stay tuned for benchmarks, firmware repositories, and video demonstrations on STM32MP2 evaluation boards.
+          </div>
+        </div>
+      </section>
+
+      <!-- Section: Repositories & License -->
+      <section id="repositories">
+        <h2 class="section-heading">
+          <span>📦</span>
+          <span>10. Repositories, Credits & License</span>
+        </h2>
+        <p>
+          All implementations of Van Gogh Flow are open source and published under permissive licenses on GitHub:
+        </p>
+
+        <div class="card-grid">
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">VanGoghFlow_Wayland</span>
+              <span class="badge badge-green">C++17 / Wayland</span>
+            </div>
+            <div class="card-body">
+              <p>Direct Wayland layer-shell client with EGL and OpenGL ES 2.0 procedural shader plugins. 100% click-through guarantee.</p>
+            </div>
+            <div class="card-footer">
+              <a href="https://github.com/BenjaminPritchard/VanGoghFlow_Wayland" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+              <span class="badge">MIT License</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">VanGoghFlow_macOS</span>
+              <span class="badge badge-green">Metal / AppKit</span>
+            </div>
+            <div class="card-body">
+              <p>Native macOS overlay with Apple Metal shaders, Mission Control Spaces persistence, and runtime MSL compilation.</p>
+            </div>
+            <div class="card-footer">
+              <a href="https://github.com/BenjaminPritchard/VanGoghFlow_macOS" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+              <span class="badge">MIT License</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">VanGoghFlowGTK3</span>
+              <span class="badge badge-blue">C11 / GTK3</span>
+            </div>
+            <div class="card-body">
+              <p>Linux X11 implementation using GTK+ 3.0, WebKit2GTK, Cairo empty input regions, and libappindicator3 tray applet.</p>
+            </div>
+            <div class="card-footer">
+              <a href="https://github.com/BenjaminPritchard/VanGoghFlowGTK3" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+              <span class="badge">MIT License</span>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <span class="card-title">VanGoghFlow (Win64)</span>
+              <span class="badge badge-blue">C# / WinForms</span>
+            </div>
+            <div class="card-body">
+              <p>The original 2019 Windows 10 prototype using DWM layered windows, CefSharp Chromium embedding, and Win32 hotkeys.</p>
+            </div>
+            <div class="card-footer">
+              <a href="https://github.com/BenjaminPritchard/VanGoghFlow" target="_blank" rel="noopener">View on GitHub &rarr;</a>
+              <span class="badge">Open Source</span>
+            </div>
+          </div>
+        </div>
+
+        <footer class="site-footer">
+          <div>
+            &copy; 2019–2026 <b>Benjamin Pritchard</b> / Kundalini Software. Licensed under the MIT License.
+          </div>
+          <div>
+            Part of the <a href="https://benjaminpritchard.github.io/" target="_blank" rel="noopener">Benjamin Pritchard Engineering Portfolio</a>.
+          </div>
+        </footer>
+      </section>
+
+    </main>
+  </div>
+
+  <!-- Interactive Simulator Logic -->
+  <script>
+    const canvas = document.getElementById('simCanvas');
+    const ctx = canvas.getContext('2d');
+    let currentMode = 'aurora';
+    let masterOpacity = 0.35;
+    let animId = null;
+    let time = 0;
+
+    // Handle canvas sizing
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * window.devicePixelRatio;
+      canvas.height = rect.height * window.devicePixelRatio;
+      ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    }
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
+
+    // Starfield particles
+    const stars = Array.from({ length: 220 }, () => ({
+      x: (Math.random() - 0.5) * 800,
+      y: (Math.random() - 0.5) * 800,
+      z: Math.random() * 800,
+      color: ['#facc15', '#38bdf8', '#c084fc', '#ffffff'][Math.floor(Math.random() * 4)]
+    }));
+
+    // Matrix columns
+    const matrixCols = 45;
+    const matrixY = Array.from({ length: matrixCols }, () => Math.random() * -100);
+
+    // Fireflies particles
+    const fireflies = Array.from({ length: 40 }, () => ({
+      x: Math.random() * 800,
+      y: Math.random() * 400,
+      radius: 2 + Math.random() * 3.5,
+      speedX: (Math.random() - 0.5) * 0.8,
+      speedY: (Math.random() - 0.5) * 0.8,
+      phase: Math.random() * Math.PI * 2,
+      color: ['#22c55e', '#a3e635', '#06b6d4', '#eab308'][Math.floor(Math.random() * 4)]
+    }));
+
+    function setSimMode(mode) {
+      currentMode = mode;
+      document.querySelectorAll('.sim-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById('btn' + mode.charAt(0).toUpperCase() + mode.slice(1));
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const statusEl = document.getElementById('simStatus');
+      const descriptions = {
+        aurora: 'Plugin: Aurora (Cosmic Van Gogh Plasma Ribbons)',
+        starfield: 'Plugin: Starfield (3D Warp Point Sprites)',
+        matrix: 'Plugin: Matrix (Cyberpunk Phosphor-Green Digital Rain)',
+        fireflies: 'Plugin: Fireflies (Bioluminescent Embers & Soft Radial Halos)'
+      };
+      if (statusEl) statusEl.textContent = descriptions[mode] || mode;
+    }
+
+    function updateSimOpacity(val) {
+      masterOpacity = parseFloat(val);
+      document.getElementById('opacityVal').textContent = Math.round(masterOpacity * 100) + '%';
+    }
+
+    function renderSimulation() {
+      const rect = canvas.getBoundingClientRect();
+      const w = rect.width;
+      const h = rect.height;
+
+      // Clear with background color matching HUD viewport
+      ctx.fillStyle = '#050811';
+      ctx.fillRect(0, 0, w, h);
+
+      time += 0.02;
+
+      ctx.save();
+      ctx.globalAlpha = masterOpacity;
+
+      if (currentMode === 'aurora') {
+        // Draw hypnotic plasma wave ribbons
+        for (let i = 0; i < 4; i++) {
+          ctx.beginPath();
+          ctx.moveTo(0, h * 0.5);
+          for (let x = 0; x <= w; x += 15) {
+            const freq1 = 0.008 + i * 0.003;
+            const freq2 = 0.015 - i * 0.002;
+            const yOffset = Math.sin(x * freq1 + time + i * 1.5) * 55 +
+                            Math.cos(x * freq2 - time * 0.8) * 35;
+            ctx.lineTo(x, (h * 0.4) + (i * 35) + yOffset);
+          }
+          ctx.lineTo(w, h);
+          ctx.lineTo(0, h);
+          ctx.closePath();
+
+          const colors = [
+            'rgba(30, 58, 138, 0.4)',
+            'rgba(14, 165, 233, 0.35)',
+            'rgba(234, 179, 8, 0.3)',
+            'rgba(168, 85, 247, 0.25)'
+          ];
+          ctx.fillStyle = colors[i % colors.length];
+          ctx.fill();
+        }
+      } else if (currentMode === 'starfield') {
+        // Draw 3D warp speed point sprites
+        const cx = w / 2;
+        const cy = h / 2;
+        stars.forEach(star => {
+          star.z -= 4;
+          if (star.z <= 0) {
+            star.z = 800;
+            star.x = (Math.random() - 0.5) * w * 1.5;
+            star.y = (Math.random() - 0.5) * h * 1.5;
+          }
+          const k = 250 / star.z;
+          const px = cx + star.x * k;
+          const py = cy + star.y * k;
+          const size = Math.max(0.8, (1 - star.z / 800) * 3.5);
+
+          if (px >= 0 && px <= w && py >= 0 && py <= h) {
+            ctx.beginPath();
+            ctx.arc(px, py, size, 0, Math.PI * 2);
+            ctx.fillStyle = star.color;
+            ctx.fill();
+          }
+        });
+      } else if (currentMode === 'matrix') {
+        // Draw green digital phosphor rain
+        ctx.font = '12px monospace';
+        const colWidth = w / matrixCols;
+        for (let i = 0; i < matrixCols; i++) {
+          const char = String.fromCharCode(0x30A0 + Math.floor(Math.random() * 96));
+          const x = i * colWidth;
+          const y = matrixY[i];
+
+          // Draw bright leading character
+          ctx.fillStyle = '#ffffff';
+          ctx.fillText(char, x, y);
+
+          // Draw trailing phosphor glyphs
+          ctx.fillStyle = '#22c55e';
+          for (let trail = 1; trail < 10; trail++) {
+            const trailChar = String.fromCharCode(0x30A0 + ((i + trail) % 96));
+            ctx.fillText(trailChar, x, y - trail * 14);
+          }
+
+          matrixY[i] += 5 + (i % 4);
+          if (matrixY[i] > h + 150) {
+            matrixY[i] = Math.random() * -60;
+          }
+        }
+      } else if (currentMode === 'fireflies') {
+        // Draw drifting bioluminescent glowing orbs
+        fireflies.forEach(f => {
+          f.x += f.speedX + Math.sin(time + f.phase) * 0.3;
+          f.y += f.speedY + Math.cos(time + f.phase) * 0.3;
+
+          if (f.x < 0) f.x = w;
+          if (f.x > w) f.x = 0;
+          if (f.y < 0) f.y = h;
+          if (f.y > h) f.y = 0;
+
+          const glow = Math.sin(time * 2 + f.phase) * 0.3 + 0.7;
+
+          // Radial halo gradient
+          const grad = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, f.radius * 4);
+          grad.addColorStop(0, f.color);
+          grad.addColorStop(0.3, f.color);
+          grad.addColorStop(1, 'rgba(0,0,0,0)');
+
+          ctx.beginPath();
+          ctx.arc(f.x, f.y, f.radius * 4, 0, Math.PI * 2);
+          ctx.fillStyle = grad;
+          ctx.globalAlpha = masterOpacity * glow;
+          ctx.fill();
+        });
+      }
+
+      ctx.restore();
+      animId = requestAnimationFrame(renderSimulation);
+    }
+
+    renderSimulation();
+  </script>
+</body>
+</html>
